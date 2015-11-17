@@ -51,7 +51,7 @@ end
 local race_list = 'campaign common human neutral nightelf orc undead'
 local cate_list = 'unit ability'
 local cate2_list = 'func strings'
-local slk_list = 'unitui unitabilities abilitydata'
+local slk_list = 'unitabilities'
 
 local function main()
 	local slk			= require 'slk'
@@ -66,6 +66,7 @@ local function main()
 		return
 	end
 	local mpq_dir		= fs.path(war3_dir) / 'war3.mpq' 
+	local mpqx_dir		= fs.path(war3_dir) / 'war3x.mpq' 
 
 	fs.create_directories(output_dir)
 	fs.create_directories(temp_dir)
@@ -74,6 +75,7 @@ local function main()
 
 	local map = mpq_open(input_map)
 	local mpq = mpq_open(mpq_dir)
+	local mpqx = mpq_open(mpqx_dir)
 	if not map then
 		print('[错误] 地图打开失败,请确认文件是否被占用')
 		return
@@ -92,6 +94,16 @@ local function main()
 		for cate in cate_list:gmatch '%S+' do
 			for cate2 in cate2_list:gmatch '%S+' do
 				local name = race .. cate .. cate2 .. '.txt'
+				local res = mpq:extract((slk_dir / name):string(), temp_dir / name)
+				if res then
+					local slk_data = slk:loadtxt(temp_dir / name)
+					add_slk(datas, slk_data)
+				end
+				local res = mpqx:extract((slk_dir / name):string(), temp_dir / name)
+				if res then
+					local slk_data = slk:loadtxt(temp_dir / name)
+					add_slk(datas, slk_data)
+				end
 				local res = map:extract((slk_dir / name):string(), temp_dir / name)
 				if res then
 					local slk_data = slk:loadtxt(temp_dir / name)
@@ -103,6 +115,16 @@ local function main()
 	--读取slk文件
 	for name in slk_list:gmatch '%S+' do
 		local name = name .. '.slk'
+		local res = mpq:extract((slk_dir / name):string(), temp_dir / name)
+		if res then
+			local slk_data = slk:loadfile(temp_dir / name)
+			add_slk(datas, slk_data)
+		end
+		local res = mpqx:extract((slk_dir / name):string(), temp_dir / name)
+		if res then
+			local slk_data = slk:loadfile(temp_dir / name)
+			add_slk(datas, slk_data)
+		end
 		local res = map:extract((slk_dir / name):string(), temp_dir / name)
 		if res then
 			local slk_data = slk:loadfile(temp_dir / name)
@@ -174,7 +196,34 @@ local function main()
 		table.insert(hero_icons, {name, dir})
 		--搜索技能
 		local skill_list = data['heroAbilList']
+		if not skill_list then
+			print('[错误] 英雄没有技能列表:' .. id)
+			return
+		end
+		for sid in skill_list:gmatch '[^%,]+' do
+			local sdata = datas[sid]
+			if sdata then
+				local dir = sdata['Art']
+				local name = skill_format:gsub('%$(.-)%$', function(k)
+					if k == '英雄名' then
+						return data['Name']
+					elseif k == '英雄ID' then
+						return id
+					elseif k == '技能名' then
+						return sdata['Name']
+					elseif k == '技能ID' then
+						return sid
+					end
+				end)
+				table.insert(skill_icons, {name, dir})
+			end
+		end
 	end
+
+	log(('图标搜索完毕,共搜索到 %d 个英雄头像和 %d 个技能图标.开始导出图标'):format(#hero_icons, #skill_icons))
+
+	--导出图标
+	
 end
 
 main()
