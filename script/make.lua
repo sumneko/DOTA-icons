@@ -53,6 +53,7 @@ local race_list = 'campaign common human item neutral nightelf orc undead'
 local cate_list = 'unit ability'
 local cate2_list = 'func strings'
 local slk_list = 'unitabilities abilitydata'
+local ex_list = '.blp .tga'
 
 local function main()
 	local slk			= require 'slk'
@@ -237,22 +238,32 @@ local function main()
 	local count = 0
 	for _, data in pairs(icons) do
 		local id, name, dir = data[1], data[2], data[3]
-		if id and name and dir then
-			local res
-			for i = 1, #mpqs do
-				local mpq = mpqs[i]
-				res = mpq:extract(dir, output_dir / name)
+		if not id or not name or not dir then
+			print('[错误] 技能图标没有路径:', id, name, dir)
+			return
+		end
+		for ex in ex_list:gmatch '%S+' do
+			if dir:sub(-#ex, -1):lower() == ex then
+				dir = dir:sub(1, #dir - #ex)
+			end
+		end
+		local res
+		for i = 1, #mpqs do
+			local mpq = mpqs[i]
+			for ex in ex_list:gmatch '%S+' do
+				res = mpq:extract(dir .. ex, output_dir / name)
 				if res then
 					break
 				end
 			end
 			if res then
-				count = count + 1
-			else
-				print('[错误] 没有找到文件或文件名错误:', dir, (output_dir / name):string())
+				break
 			end
+		end
+		if res then
+			count = count + 1
 		else
-			print('[错误] 技能图标没有路径:', id, name, dir)
+			print('[错误] 没有找到文件或文件名错误:', dir, (output_dir / name):string())
 		end
 	end
 
