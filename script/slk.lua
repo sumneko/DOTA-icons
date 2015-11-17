@@ -67,7 +67,9 @@ function slk:load_end(c)
 			tbl[v] = {}
 		end
 		for _, v in pairs(self.list) do
-			tbl[self.row[v[2]]][self.col[v[1]]] = v[3]
+			if self.row[v[2]] and self.col[v[1]] then
+				tbl[self.row[v[2]]][self.col[v[1]]] = v[3]
+			end
 		end
 	end
 	return tbl

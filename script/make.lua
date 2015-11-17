@@ -51,7 +51,7 @@ end
 local race_list = 'campaign common human neutral nightelf orc undead'
 local cate_list = 'unit ability'
 local cate2_list = 'func strings'
-local slk_list = 'unitabilities'
+local slk_list = 'unitabilities abilitydata'
 
 local function main()
 	local slk			= require 'slk'
@@ -202,21 +202,23 @@ local function main()
 		end
 		for sid in skill_list:gmatch '[^%,]+' do
 			local sdata = datas[sid]
-			if sdata then
-				local dir = sdata['Art']
-				local name = skill_format:gsub('%$(.-)%$', function(k)
-					if k == '英雄名' then
-						return data['Name']
-					elseif k == '英雄ID' then
-						return id
-					elseif k == '技能名' then
-						return sdata['Name']
-					elseif k == '技能ID' then
-						return sid
-					end
-				end)
-				table.insert(skill_icons, {name, dir})
+			if not sdata then
+				print('[错误] 没有找到技能:' .. sid)
+				return
 			end
+			local dir = sdata['Art']
+			local name = skill_format:gsub('%$(.-)%$', function(k)
+				if k == '英雄名' then
+					return data['Name']
+				elseif k == '英雄ID' then
+					return id
+				elseif k == '技能名' then
+					return sdata['Name']
+				elseif k == '技能ID' then
+					return sid
+				end
+			end)
+			table.insert(skill_icons, {name, dir})
 		end
 	end
 
