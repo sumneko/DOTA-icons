@@ -181,19 +181,18 @@ local function main()
 		print('[错误] 配置文件错误,没有找到[技能图标]一项')
 		return
 	end
-	local hero_icons = {}
-	local skill_icons = {}
+	local icons = {}
 	for _, id in ipairs(heros) do
 		local data = datas[id]
 		local dir = data['Art']
 		local name = hero_format:gsub('%$(.-)%$', function(k)
 			if k == '英雄名' then
-				return data['Name']
+				return data['Tip']
 			elseif k == '英雄ID' then
 				return id
 			end
 		end)
-		table.insert(hero_icons, {name, dir})
+		icons[name] = dir
 		--搜索技能
 		local skill_list = data['heroAbilList']
 		if not skill_list then
@@ -218,14 +217,27 @@ local function main()
 					return sid
 				end
 			end)
-			table.insert(skill_icons, {name, dir})
+			icons[name] = dir
 		end
 	end
 
-	log(('图标搜索完毕,共搜索到 %d 个英雄头像和 %d 个技能图标.开始导出图标'):format(#hero_icons, #skill_icons))
+	log '图标搜索完毕,开始导出图标'
 
 	--导出图标
-	
+	local count = 0
+	for name, dir in pairs(icons) do
+		count = count + 1
+		local res = map:extract(dir, output_dir / name)
+		if not res then
+			local res = mpq:extract(dir, output_dir / name)
+			if not res then
+				print('[错误] 没有找到文件或文件名错误:', dir, (output_dir / name):string())
+				count = count - 1
+			end
+		end
+	end
+
+	log('图标导出完毕,共导出图标数:', count)
 end
 
 main()
