@@ -12,19 +12,13 @@ require 'utility'
 require 'stormlib'
 require 'localization'
 
-if not arg or #arg < 2 then
-	print '笨蛋,把地图拖到bat里来导出啊'
-	return
+local function log(...)
+	print('[' .. os.clock() .. ']', ...)
 end
 
-local real_print = print
-
-local function print(...)
-	local args = {...}
-	for i = 1, #args do
-		args[i] = utf8_to_ansi(tostring(args[i]))
-	end
-	return real_print(table.unpack(args))
+if not arg or #arg < 2 then
+	print '[错误] 笨蛋,把地图拖到bat里来导出啊'
+	return
 end
 
 local function read_ini()
@@ -32,7 +26,6 @@ local function read_ini()
 	local content = io.load(path)
 	local tbl = {}
 	if content then
-		content = ansi_to_utf8(content)
 		for key, value in content:gmatch '(%C-)%=(%C+)' do
 			tbl[key] = value
 		end
@@ -40,10 +33,28 @@ local function read_ini()
 	return tbl
 end
 
+local function add_slk(data, new)
+	for k, new_v in pairs(new) do
+		local data_v = data[k]
+		if not data_v then
+			data_v = {}
+			data[k] = data_v
+		end
+		if type(data_v) == 'table' and type(new_v) == 'table' then
+			for ck, v in pairs(new_v) do
+				data_v[ck] = v
+			end
+		end
+	end
+end
+
 local race_list = 'campaign common human neutral nightelf orc undead'
 local cate_list = 'unit ability'
+local cate2_list = 'func strings'
+local slk_list = 'unitui unitabilities abilitydata'
 
 local function main()
+	local slk			= require 'slk'
 	local ini			= read_ini()
 	local input_map		= fs.path(map_dir)
 	local root_dir		= fs.path(root_dir)
@@ -51,7 +62,7 @@ local function main()
 	local temp_dir		= root_dir / 'temp'
 	local war3_dir		= ini['魔兽目录']
 	if not war3_dir then
-		print('配置文件错误,没有找到[魔兽目录]一项')
+		print('[错误] 配置文件错误,没有找到[魔兽目录]一项')
 		return
 	end
 	local mpq_dir		= fs.path(war3_dir) / 'war3.mpq' 
@@ -59,24 +70,110 @@ local function main()
 	fs.create_directories(output_dir)
 	fs.create_directories(temp_dir)
 
+	log '初始化完毕,开始打开文件'
+
 	local map = mpq_open(input_map)
 	local mpq = mpq_open(mpq_dir)
 	if not map then
-		print('地图打开失败,请确认文件是否被占用')
+		print('[错误] 地图打开失败,请确认文件是否被占用')
 		return
 	end
 	if not mpq then
-		print('mpq打开失败,请确认魔兽路径是否配置正确')
+		print('[错误] mpq打开失败,请确认魔兽路径是否配置正确')
 		return
 	end
-	--导出slk文件
+
+	log '文件打开完毕,开始解析slk'
+
 	local slk_dir = fs.path 'units'
+	local datas = {}
+	--读取txt文件
 	for race in race_list:gmatch '%S+' do
 		for cate in cate_list:gmatch '%S+' do
-			local name = race .. cate .. 'func.txt'
-			local res = map:extract(slk_dir / name, (temp_dir / name):string())
-			print(res)
+			for cate2 in cate2_list:gmatch '%S+' do
+				local name = race .. cate .. cate2 .. '.txt'
+				local res = map:extract((slk_dir / name):string(), temp_dir / name)
+				if res then
+					local slk_data = slk:loadtxt(temp_dir / name)
+					add_slk(datas, slk_data)
+				end
+			end
 		end
+	end
+	--读取slk文件
+	for name in slk_list:gmatch '%S+' do
+		local name = name .. '.slk'
+		local res = map:extract((slk_dir / name):string(), temp_dir / name)
+		if res then
+			local slk_data = slk:loadfile(temp_dir / name)
+			add_slk(datas, slk_data)
+		end
+	end
+
+	log 'slk解析完毕,开始搜索酒馆'
+
+	--搜索酒馆
+	local taverns = {}
+	local tip = ini['酒馆标题']
+	if not tip then
+		print('[错误] 配置文件错误,没有找到[酒馆标题]一项')
+		return
+	end
+	for id, data in pairs(datas) do
+		if data['Tip'] == tip then
+			table.insert(taverns, data)
+		end
+	end
+	if #taverns == 0 then
+		print('[错误] 没有找到任何酒馆')
+		return
+	end
+
+	log '酒馆搜索完毕,开始搜索英雄'
+
+	--搜索英雄
+	local heros = {}
+	for _, data in ipairs(taverns) do
+		local hero_list = data['Sellunits']
+		if hero_list then
+			for id in hero_list:gmatch '[^,]+' do
+				table.insert(heros, id)
+			end
+		end
+	end
+	if #heros == 0 then
+		print('[错误] 没有找到任何英雄')
+		return
+	end
+
+	log('英雄搜索完毕,共搜索到 ' .. #heros .. ' 个英雄,开始搜索图标路径')
+
+	--搜索图标
+	local hero_format = ini['英雄头像']
+	local skill_format = ini['技能图标']
+	if not hero_format then
+		print('[错误] 配置文件错误,没有找到[英雄头像]一项')
+		return
+	end
+	if not skill_format then
+		print('[错误] 配置文件错误,没有找到[技能图标]一项')
+		return
+	end
+	local hero_icons = {}
+	local skill_icons = {}
+	for _, id in ipairs(heros) do
+		local data = datas[id]
+		local dir = data['Art']
+		local name = hero_format:gsub('%$(.-)%$', function(k)
+			if k == '英雄名' then
+				return data['Name']
+			elseif k == '英雄ID' then
+				return id
+			end
+		end)
+		table.insert(hero_icons, {name, dir})
+		--搜索技能
+		local skill_list = data['heroAbilList']
 	end
 end
 
