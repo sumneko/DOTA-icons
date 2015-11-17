@@ -137,9 +137,12 @@ function slk:loadtxt(path)
 			tbl[section] = {}
 		elseif string.sub(line,1,2) == "//" then
 		elseif line ~= "" then
-			local key = string.trim(string.sub(line, 1, string.find(line, "=") - 1))
-			local value = string.trim(string.sub(line, string.find(line, "=") + 1))
-			tbl[section][key] = value or ""
+			local pos = string.find(line, "=")
+			if pos and section then
+				local key = string.trim(string.sub(line, 1, pos - 1))
+				local value = string.trim(string.sub(line, pos + 1))
+				tbl[section][key] = value or ""
+			end
 		end
 	end
 	f:close()

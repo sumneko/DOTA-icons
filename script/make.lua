@@ -48,7 +48,8 @@ local function add_slk(data, new)
 	end
 end
 
-local race_list = 'campaign common human neutral nightelf orc undead'
+local mpq_list = 'war3patch war3xlocal war3x war3'
+local race_list = 'campaign common human item neutral nightelf orc undead'
 local cate_list = 'unit ability'
 local cate2_list = 'func strings'
 local slk_list = 'unitabilities abilitydata'
@@ -65,27 +66,44 @@ local function main()
 		print('[错误] 配置文件错误,没有找到[魔兽目录]一项')
 		return
 	end
-	local mpq_dir		= fs.path(war3_dir) / 'war3.mpq' 
-	local mpqx_dir		= fs.path(war3_dir) / 'war3x.mpq' 
-
+	
 	fs.create_directories(output_dir)
 	fs.create_directories(temp_dir)
 
 	log '初始化完毕,开始打开文件'
-
 	local map = mpq_open(input_map)
-	local mpq = mpq_open(mpq_dir)
-	local mpqx = mpq_open(mpqx_dir)
 	if not map then
 		print('[错误] 地图打开失败,请确认文件是否被占用')
 		return
 	end
-	if not mpq then
-		print('[错误] mpq打开失败,请确认魔兽路径是否配置正确')
+	local mpqs = {map}
+	for name in mpq_list:gmatch '%S+' do
+		local mpq_dir = fs.path(war3_dir) / (name .. '.mpq' )
+		local mpq = mpq_open(mpq_dir)
+		if not mpq then
+			print('[错误] mpq打开失败,请确认魔兽路径是否配置正确:', name)
+			return
+		end
+		table.insert(mpqs, mpq)
+	end
+
+	log '文件打开完毕,开始解析脚本'
+
+	--读取脚本
+	local name = 'war3map.j'
+	local res = map:extract(name, temp_dir / name) or map:extract('scripts/' .. name, temp_dir / name)
+	local file = io.open((temp_dir / name):string())
+	if not file then
+		print('[错误] 脚本打开失败')
+		return
+	end
+	local script = file:read 'a'
+	if not script then
+		print('[错误] 脚本读取失败')
 		return
 	end
 
-	log '文件打开完毕,开始解析slk'
+	log '脚本解析完毕,开始解析slk'
 
 	local slk_dir = fs.path 'units'
 	local datas = {}
@@ -94,20 +112,13 @@ local function main()
 		for cate in cate_list:gmatch '%S+' do
 			for cate2 in cate2_list:gmatch '%S+' do
 				local name = race .. cate .. cate2 .. '.txt'
-				local res = mpq:extract((slk_dir / name):string(), temp_dir / name)
-				if res then
-					local slk_data = slk:loadtxt(temp_dir / name)
-					add_slk(datas, slk_data)
-				end
-				local res = mpqx:extract((slk_dir / name):string(), temp_dir / name)
-				if res then
-					local slk_data = slk:loadtxt(temp_dir / name)
-					add_slk(datas, slk_data)
-				end
-				local res = map:extract((slk_dir / name):string(), temp_dir / name)
-				if res then
-					local slk_data = slk:loadtxt(temp_dir / name)
-					add_slk(datas, slk_data)
+				for i = #mpqs, 1, -1 do
+					local mpq = mpqs[i]
+					local res = mpq:extract((slk_dir / name):string(), temp_dir / name)
+					if res then
+						local slk_data = slk:loadtxt(temp_dir / name)
+						add_slk(datas, slk_data)
+					end
 				end
 			end
 		end
@@ -115,20 +126,13 @@ local function main()
 	--读取slk文件
 	for name in slk_list:gmatch '%S+' do
 		local name = name .. '.slk'
-		local res = mpq:extract((slk_dir / name):string(), temp_dir / name)
-		if res then
-			local slk_data = slk:loadfile(temp_dir / name)
-			add_slk(datas, slk_data)
-		end
-		local res = mpqx:extract((slk_dir / name):string(), temp_dir / name)
-		if res then
-			local slk_data = slk:loadfile(temp_dir / name)
-			add_slk(datas, slk_data)
-		end
-		local res = map:extract((slk_dir / name):string(), temp_dir / name)
-		if res then
-			local slk_data = slk:loadfile(temp_dir / name)
-			add_slk(datas, slk_data)
+		for i = #mpqs, 1, -1 do
+			local mpq = mpqs[i]
+			local res = mpq:extract((slk_dir / name):string(), temp_dir / name)
+			if res then
+				local slk_data = slk:loadfile(temp_dir / name)
+				add_slk(datas, slk_data)
+			end
 		end
 	end
 
@@ -142,7 +146,7 @@ local function main()
 		return
 	end
 	for id, data in pairs(datas) do
-		if data['Tip'] == tip then
+		if data['Tip'] == tip and data['Name']:find '-' then
 			table.insert(taverns, data)
 		end
 	end
@@ -151,7 +155,7 @@ local function main()
 		return
 	end
 
-	log '酒馆搜索完毕,开始搜索英雄'
+	log(('酒馆搜索完毕,共搜索到 %d 个酒馆,开始搜索英雄:'):format(#taverns))
 
 	--搜索英雄
 	local heros = {}
@@ -192,48 +196,63 @@ local function main()
 				return id
 			end
 		end)
-		icons[name] = dir
+		table.insert(icons, {id, name, dir})
 		--搜索技能
 		local skill_list = data['heroAbilList']
 		if not skill_list then
 			print('[错误] 英雄没有技能列表:' .. id)
 			return
 		end
+		local count = 0
 		for sid in skill_list:gmatch '[^%,]+' do
+			count = count + 1
 			local sdata = datas[sid]
 			if not sdata then
 				print('[错误] 没有找到技能:' .. sid)
 				return
 			end
 			local dir = sdata['Art']
+			local sname = sdata['Name']
 			local name = skill_format:gsub('%$(.-)%$', function(k)
 				if k == '英雄名' then
 					return data['Name']
 				elseif k == '英雄ID' then
 					return id
 				elseif k == '技能名' then
-					return sdata['Name']
+					return sname
 				elseif k == '技能ID' then
 					return sid
 				end
 			end)
-			icons[name] = dir
+			table.insert(icons, {id, name, dir})
+		end
+		if count ~= 5 then
+			print('[警告] 英雄的技能数量不是5个', id, name, skill_list)
 		end
 	end
 
-	log '图标搜索完毕,开始导出图标'
+	log(('图标搜索完毕,共搜索到图标 %d 个,开始导出图标'):format(#icons))
 
 	--导出图标
 	local count = 0
-	for name, dir in pairs(icons) do
-		count = count + 1
-		local res = map:extract(dir, output_dir / name)
-		if not res then
-			local res = mpq:extract(dir, output_dir / name)
-			if not res then
-				print('[错误] 没有找到文件或文件名错误:', dir, (output_dir / name):string())
-				count = count - 1
+	for _, data in pairs(icons) do
+		local id, name, dir = data[1], data[2], data[3]
+		if id and name and dir then
+			local res
+			for i = 1, #mpqs do
+				local mpq = mpqs[i]
+				res = mpq:extract(dir, output_dir / name)
+				if res then
+					break
+				end
 			end
+			if res then
+				count = count + 1
+			else
+				print('[错误] 没有找到文件或文件名错误:', dir, (output_dir / name):string())
+			end
+		else
+			print('[错误] 技能图标没有路径:', id, name, dir)
 		end
 	end
 
