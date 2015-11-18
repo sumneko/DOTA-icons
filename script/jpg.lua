@@ -10,4 +10,8 @@ ffi.cdef[[
 	const char*          ijlErrorStr(IJLERR code);
 ]]
 
-return ffi.load 'ijl15'
+local jpg = ffi.load 'ijl15'
+
+function 
+
+return jpg

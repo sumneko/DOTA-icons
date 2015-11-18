@@ -268,6 +268,9 @@ local function main()
 	end
 
 	log(('图标导出完毕,共导出图标 %d ,开始转换图标'):format(count))
+
+	--转换图标
+	local blp = require 'blp'
 end
 
 main()
