@@ -62,6 +62,7 @@ local function main()
 	local root_dir		= fs.path(root_dir)
 	local output_dir	= root_dir / 'output'
 	local temp_dir		= root_dir / 'temp'
+	local blp_dir		= root_dir / 'blp'
 	local war3_dir		= ini['魔兽目录']
 	if not war3_dir then
 		print('[错误] 配置文件错误,没有找到[魔兽目录]一项')
@@ -70,6 +71,7 @@ local function main()
 	
 	fs.create_directories(output_dir)
 	fs.create_directories(temp_dir)
+	fs.create_directories(blp_dir)
 
 	log '初始化完毕,开始打开文件'
 	local map = mpq_open(input_map)
@@ -251,7 +253,7 @@ local function main()
 		for i = 1, #mpqs do
 			local mpq = mpqs[i]
 			for ex in ex_list:gmatch '%S+' do
-				res = mpq:extract(dir .. ex, output_dir / name)
+				res = mpq:extract(dir .. ex, blp_dir / (name .. '.blp'))
 				if res then
 					break
 				end
@@ -263,7 +265,7 @@ local function main()
 		if res then
 			count = count + 1
 		else
-			print('[错误] 没有找到文件或文件名错误:', dir, (output_dir / name):string())
+			print('[错误] 没有找到文件或文件名错误:', dir, (blp_dir / name):string())
 		end
 	end
 
@@ -271,6 +273,16 @@ local function main()
 
 	--转换图标
 	local blp = require 'blp'
+	local count = 0
+	for _, data in pairs(icons) do
+		local name = data[2]
+		local res = blp(blp_dir / (name .. '.blp'), output_dir / (name .. '.jpg'))
+		if res then
+			count = count + 1
+		end
+	end
+
+	log(('图标转换完毕,共转换 %d 个图标'):format(count))
 end
 
 main()
