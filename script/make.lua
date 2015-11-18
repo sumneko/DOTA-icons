@@ -267,7 +267,7 @@ local function main()
 		end
 	end
 
-	log('图标导出完毕,共导出图标数:', count)
+	log(('图标导出完毕,共导出图标 %d ,开始转换图标'):format(count))
 end
 
 main()
