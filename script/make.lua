@@ -12,6 +12,9 @@ require 'utility'
 require 'stormlib'
 require 'localization'
 
+map_dir = ansi_to_utf8(map_dir)
+root_dir = ansi_to_utf8(root_dir)
+
 local function log(...)
 	print('[' .. os.clock() .. ']', ...)
 end
@@ -60,7 +63,7 @@ local function main()
 	local ini			= read_ini()
 	local input_map		= fs.path(map_dir)
 	local root_dir		= fs.path(root_dir)
-	local output_dir	= root_dir / 'output'
+	local output_dir	= root_dir / 'jpg'
 	local temp_dir		= root_dir / 'temp'
 	local blp_dir		= root_dir / 'blp'
 	local war3_dir		= ini['魔兽目录']
