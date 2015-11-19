@@ -114,20 +114,24 @@ local function main()
 	local slk_dir = fs.path 'units'
 	local datas = {}
 	--读取txt文件
-	for race in race_list:gmatch '%S+' do
-		for cate in cate_list:gmatch '%S+' do
-			for cate2 in cate2_list:gmatch '%S+' do
-				local name = race .. cate .. cate2 .. '.txt'
-				for i = #mpqs, 1, -1 do
-					local mpq = mpqs[i]
-					local res = mpq:extract((slk_dir / name):string(), temp_dir / name)
-					if res then
-						local slk_data = slk:loadtxt(temp_dir / name)
-						add_slk(datas, slk_data)
-					end
+	local function read(race, cate)
+		for cate2 in cate2_list:gmatch '%S+' do
+			local name = race .. cate .. cate2 .. '.txt'
+			for i = #mpqs, 1, -1 do
+				local mpq = mpqs[i]
+				local res = mpq:extract((slk_dir / name):string(), temp_dir / name)
+				if res then
+					local slk_data = slk:loadtxt(temp_dir / name)
+					add_slk(datas, slk_data)
 				end
 			end
 		end
+	end
+	for race in race_list:gmatch '%S+' do
+		for cate in cate_list:gmatch '%S+' do
+			read(race, cate)
+		end
+		read(race, '')
 	end
 	--读取slk文件
 	for name in slk_list:gmatch '%S+' do
@@ -183,12 +187,17 @@ local function main()
 	--搜索图标
 	local hero_format = ini['英雄头像']
 	local skill_format = ini['技能图标']
+	local item_format = ini['物品图标']
 	if not hero_format then
 		print('[错误] 配置文件错误,没有找到[英雄头像]一项')
 		return
 	end
 	if not skill_format then
 		print('[错误] 配置文件错误,没有找到[技能图标]一项')
+		return
+	end
+	if not item_format then
+		print('[错误] 配置文件错误,没有找到[物品图标]一项')
 		return
 	end
 	local icons = {}
@@ -230,10 +239,25 @@ local function main()
 					return sid
 				end
 			end)
-			table.insert(icons, {id, name, dir})
+			table.insert(icons, {sid, name, dir})
 		end
 		if count ~= 5 then
 			print('[警告] 英雄的技能数量不是5个', id, name, skill_list)
+		end
+	end
+
+	for id, data in pairs(datas) do
+		if id:sub(1, 1) == 'I' then
+			local name = data['Name']:match '(.*)|n' or data['Name']
+			local dir = data['Art']
+			local name = item_format:gsub('%$(.-)%$', function(k)
+				if k == '物品名' then
+					return name
+				elseif k == '物品ID' then
+					return id
+				end
+			end)
+			table.insert(icons, {id, name, dir})
 		end
 	end
 
@@ -241,12 +265,15 @@ local function main()
 
 	--导出图标
 	local count = 0
-	for _, data in pairs(icons) do
+	for i, data in pairs(icons) do
 		local id, name, dir = data[1], data[2], data[3]
 		if not id or not name or not dir then
 			print('[错误] 技能图标没有路径:', id, name, dir)
 			return
 		end
+		local name = name:gsub('[%\\%/%:%*%?%"%<%>%|%s]', '_')
+		local name = name:gsub('â', '_')
+		data[2] = name
 		for ex in ex_list:gmatch '%S+' do
 			if dir:sub(-#ex, -1):lower() == ex then
 				dir = dir:sub(1, #dir - #ex)
@@ -268,7 +295,8 @@ local function main()
 		if res then
 			count = count + 1
 		else
-			print('[错误] 没有找到文件或文件名错误:', dir, (blp_dir / name):string())
+			print('[警告] 没有找到文件或文件名错误:', dir, (blp_dir / name):string())
+			icons[i] = nil
 		end
 	end
 
